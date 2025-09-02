@@ -7,8 +7,12 @@ use tokio::net::tcp::OwnedWriteHalf;
 use tokio::time::sleep;
 
 use crate::message::producer_message::{CreateTopicMessage, MessageTypes, ProducerMessage};
+use crate::message_generate::generate_create_topic::create_topic_message;
+use crate::message_generate::generate_delete_topic::delete_topic_message;
+use crate::message_generate::generate_send_message::send_topic_message;
 
 pub mod message;
+pub mod message_generate;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -17,7 +21,7 @@ async fn main() -> std::io::Result<()> {
     println!("Connected to 127.0.0.1:8000");
 
     // Split into read/write halves using BufReader for line-based reading
-    let (read_half, mut write_half) = stream.into_split();
+    let (read_half, write_half) = stream.into_split();
     let mut reader = BufReader::new(read_half);
     let mut line = String::new();
     let handler = tokio::spawn(async move {
@@ -37,20 +41,21 @@ async fn main() -> std::io::Result<()> {
 }
 
 async fn producer_handler(mut write_half: OwnedWriteHalf) -> Result<(), Box<dyn Error>> {
-    println!("sendingf");
-    // Send the message (include newline so the server echo can be read with lines())
     let msg: u8 = 0;
     write_half.write_all(&[msg]).await?;
-    // Optionally flush (not strictly necessary for TCP here)
     write_half.flush().await?;
-    let msg = ProducerMessage {
-        message: MessageTypes::CreateTopic(CreateTopicMessage {
-            topic_name: "orders".to_string(),
-            partitions: 3,
-        }),
-    };
-    let json_bytes = serde_json::to_vec(&msg)?;
-    write_half.write_all(&json_bytes).await?;
+    let create_topic_message = create_topic_message("createdtopic".to_string(), 4)?;
+    let delete_topic_message = delete_topic_message("createdtopic".to_string())?;
+    let normal_send_message = send_topic_message("createdtopic".to_string())?;
+    println!("sending craete topic message");
+    write_half.write_all(&create_topic_message).await?;
+    write_half.flush().await?;
+    println!("sending delete topic message");
+    write_half.write_all(&delete_topic_message).await?;
+    write_half.flush().await?;
+    println!("sending normal topic message");
+    write_half.write_all(&normal_send_message).await?;
     write_half.flush().await?;
     Ok(())
 }
+
