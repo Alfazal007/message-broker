@@ -1,12 +1,9 @@
 use std::error::Error;
-use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::net::tcp::OwnedWriteHalf;
-use tokio::time::sleep;
 
-use crate::message::producer_message::{CreateTopicMessage, MessageTypes, ProducerMessage};
 use crate::message_generate::generate_create_topic::create_topic_message;
 use crate::message_generate::generate_delete_topic::delete_topic_message;
 use crate::message_generate::generate_send_message::send_topic_message;
@@ -46,16 +43,28 @@ async fn producer_handler(mut write_half: OwnedWriteHalf) -> Result<(), Box<dyn 
     write_half.flush().await?;
     let create_topic_message = create_topic_message("createdtopic".to_string(), 4)?;
     let delete_topic_message = delete_topic_message("createdtopic".to_string())?;
-    let normal_send_message = send_topic_message("createdtopic".to_string())?;
-    println!("sending craete topic message");
+    let normal_send_message_without_key = send_topic_message("createdtopic".to_string(), None)?;
+    let normal_send_message_with_key =
+        send_topic_message("createdtopic".to_string(), Some("test".to_string()))?;
+
+    println!("sending create topic message");
     write_half.write_all(&create_topic_message).await?;
     write_half.flush().await?;
+
+    println!("sending normal topic message without key");
+    for _ in 1..100 {
+        write_half
+            .write_all(&normal_send_message_without_key)
+            .await?;
+        write_half.flush().await?;
+    }
+
+    println!("sending normal topic message with key");
+    write_half.write_all(&normal_send_message_with_key).await?;
+    write_half.flush().await?;
+
     println!("sending delete topic message");
     write_half.write_all(&delete_topic_message).await?;
     write_half.flush().await?;
-    println!("sending normal topic message");
-    write_half.write_all(&normal_send_message).await?;
-    write_half.flush().await?;
     Ok(())
 }
-

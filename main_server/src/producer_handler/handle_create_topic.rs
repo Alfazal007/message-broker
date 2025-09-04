@@ -1,5 +1,5 @@
-use crate::message::producer_message::CreateTopicMessage;
-use std::{collections::HashSet, env, path::Path, sync::Arc};
+use crate::{CurrentTopics, PartitionToMessage, message::producer_message::CreateTopicMessage};
+use std::{collections::HashMap, env, path::Path, sync::Arc};
 use tokio::{
     fs::{self, File},
     sync::Mutex,
@@ -7,7 +7,8 @@ use tokio::{
 
 pub async fn handle_create_topic(
     message: CreateTopicMessage,
-    topics: Arc<Mutex<HashSet<String>>>,
+    topics: Arc<Mutex<HashMap<String, CurrentTopics>>>,
+    messages: Arc<Mutex<HashMap<String, Vec<PartitionToMessage>>>>,
 ) -> Result<(), String> {
     let CreateTopicMessage {
         topic_name,
@@ -20,7 +21,7 @@ pub async fn handle_create_topic(
 
     let should_create = {
         let topic_exists = topics.lock().await;
-        !topic_exists.contains(&topic_name)
+        !topic_exists.contains_key(&topic_name)
     };
 
     if should_create {
@@ -39,7 +40,29 @@ pub async fn handle_create_topic(
                 return Err(format!("Issue creating topic file {:?}", file_res.err()));
             }
         }
-        topics.lock().await.insert(topic_name);
+        {
+            topics.lock().await.insert(
+                topic_name.clone(),
+                CurrentTopics {
+                    partitions_count: partitions,
+                    prev_inserted_partition: 0,
+                },
+            );
+
+            let mut partitions_to_message: Vec<PartitionToMessage> = Vec::new();
+            for i in 0..partitions {
+                partitions_to_message.push({
+                    PartitionToMessage {
+                        partition: i,
+                        messages: Vec::new(),
+                    }
+                });
+            }
+            messages
+                .lock()
+                .await
+                .insert(topic_name.clone(), partitions_to_message);
+        }
     }
     Ok(())
 }

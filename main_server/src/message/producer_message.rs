@@ -25,6 +25,8 @@ pub struct DeleteTopicMessage {
 
 #[derive(Deserialize, Debug)]
 pub struct SendMessage {
+    #[serde(default)]
+    pub key: Option<String>,
     pub topic_name: String,
     pub message: Vec<u8>,
 }

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -8,19 +8,39 @@ use tokio::sync::Mutex;
 
 use crate::message::producer_message::ProducerMessage;
 use crate::producer_handler::handle_create_topic::handle_create_topic;
+use crate::producer_handler::handle_delete_topic::handle_delete_topic;
+use crate::producer_handler::handle_normal_message::handle_normal_topic;
 
+pub mod helpers;
 pub mod message;
 pub mod producer_handler;
+
+pub struct CurrentTopics {
+    pub partitions_count: i32,
+    pub prev_inserted_partition: i32,
+}
+
+pub struct PartitionToMessage {
+    pub partition: i32,
+    pub messages: Vec<Vec<u8>>,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Bind to address
     let listener = TcpListener::bind("127.0.0.1:8000").await?;
-    let current_topics: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+    let current_topics: Arc<Mutex<HashMap<String, CurrentTopics>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+
+    let topics_messages_cache: Arc<Mutex<HashMap<String, Vec<PartitionToMessage>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+
     println!("Listening on 127.0.0.1:8000");
 
     loop {
         let current_topics_handled = Arc::clone(&current_topics);
+        let current_messages_handled = Arc::clone(&topics_messages_cache);
+
         let (mut socket, peer_addr) = listener.accept().await?;
         println!("Accepted connection from {}", peer_addr);
 
@@ -57,7 +77,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                                 match data.message {
                                                     message::producer_message::MessageTypes::CreateTopic(create_topic_message) =>{
                                                         println!("create topic message {:?}", create_topic_message);
-                                                        let res = handle_create_topic(create_topic_message, Arc::clone(&current_topics_handled)).await;
+                                                        let res = handle_create_topic(create_topic_message,
+                                                            Arc::clone(&current_topics_handled),
+                                                            Arc::clone(&current_messages_handled)
+                                                        )
+                                                        .await;
                                                         if res.is_err() {
                                                             println!("{:?}", res.err());
                                                             return;
@@ -65,9 +89,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                                     },
                                                     message::producer_message::MessageTypes::DeleteTopic(delete_topic_message) => {
                                                         println!("delete topic message {:?}", delete_topic_message);
+                                                        let res = handle_delete_topic(
+                                                            delete_topic_message,
+                                                            Arc::clone(&current_topics_handled),
+                                                            Arc::clone(&current_messages_handled)
+                                                        ).await;
+                                                        if res.is_err() {
+                                                            println!("{:?}", res.err());
+                                                            return;
+                                                        }
                                                     },
                                                     message::producer_message::MessageTypes::SendMessage(send_message) => {
                                                         println!("send message {:?}", send_message);
+                                                        let res = handle_normal_topic(
+                                                            send_message,
+                                                            Arc::clone(&current_topics_handled),
+                                                            Arc::clone(&current_messages_handled)
+                                                        ).await;
+                                                        if res.is_err() {
+                                                            println!("{:?}", res.err());
+                                                            return;
+                                                        }
                                                     }
                                                 }
                                             }
