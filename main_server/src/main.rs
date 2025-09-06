@@ -23,6 +23,8 @@ pub struct CurrentTopics {
 pub struct PartitionToMessage {
     pub partition: i32,
     pub messages: Vec<Vec<u8>>,
+    pub current_file_number: i32,
+    pub lines_added_to_current_file: i32,
 }
 
 #[tokio::main]
@@ -76,7 +78,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                             Ok(data) => {
                                                 match data.message {
                                                     message::producer_message::MessageTypes::CreateTopic(create_topic_message) =>{
-                                                        println!("create topic message {:?}", create_topic_message);
+                                                        println!("create topic message");
                                                         let res = handle_create_topic(create_topic_message,
                                                             Arc::clone(&current_topics_handled),
                                                             Arc::clone(&current_messages_handled)
@@ -88,7 +90,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                                         }
                                                     },
                                                     message::producer_message::MessageTypes::DeleteTopic(delete_topic_message) => {
-                                                        println!("delete topic message {:?}", delete_topic_message);
+                                                        println!("delete topic message");
                                                         let res = handle_delete_topic(
                                                             delete_topic_message,
                                                             Arc::clone(&current_topics_handled),
@@ -100,7 +102,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                                         }
                                                     },
                                                     message::producer_message::MessageTypes::SendMessage(send_message) => {
-                                                        println!("send message {:?}", send_message);
+                                                        println!("send message");
                                                         let res = handle_normal_topic(
                                                             send_message,
                                                             Arc::clone(&current_topics_handled),

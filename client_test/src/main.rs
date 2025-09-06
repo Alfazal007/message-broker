@@ -52,7 +52,8 @@ async fn producer_handler(mut write_half: OwnedWriteHalf) -> Result<(), Box<dyn 
     write_half.flush().await?;
 
     println!("sending normal topic message without key");
-    for _ in 1..100 {
+
+    for _ in 1..80 {
         write_half
             .write_all(&normal_send_message_without_key)
             .await?;
@@ -60,11 +61,13 @@ async fn producer_handler(mut write_half: OwnedWriteHalf) -> Result<(), Box<dyn 
     }
 
     println!("sending normal topic message with key");
-    write_half.write_all(&normal_send_message_with_key).await?;
-    write_half.flush().await?;
-
+    for _ in 1..10 {
+        write_half.write_all(&normal_send_message_with_key).await?;
+        write_half.flush().await?;
+    }
     println!("sending delete topic message");
     write_half.write_all(&delete_topic_message).await?;
     write_half.flush().await?;
+
     Ok(())
 }

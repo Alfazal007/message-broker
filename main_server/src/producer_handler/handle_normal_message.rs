@@ -1,4 +1,8 @@
-use crate::{CurrentTopics, PartitionToMessage, message::producer_message::SendMessage};
+use crate::{
+    CurrentTopics, PartitionToMessage,
+    helpers::write_to_file::{append_vecs_to_file, create_file},
+    message::producer_message::SendMessage,
+};
 use std::{
     collections::HashMap,
     hash::{DefaultHasher, Hash, Hasher},
@@ -52,13 +56,13 @@ pub async fn handle_normal_topic(
         .messages
         .push(message.message);
 
-    let size = message_guard
+    let cache_size = message_guard
         .get(&message.topic_name)
         .unwrap()
         .get(partition_to_send_to as usize)
         .unwrap()
         .messages
-        .len();
+        .len() as i32;
 
     let list_of_values = message_guard
         .get(&message.topic_name)
@@ -68,9 +72,60 @@ pub async fn handle_normal_topic(
         .messages
         .clone();
 
-    if size >= 10 {
-        println!("Size is greater than 10 and size is {}", size);
-        println!("{:?}", list_of_values);
+    if cache_size != 10 {
+        println!("cache size is {}", cache_size);
+    }
+
+    if cache_size == 10 {
+        println!("Size is greater than 10 and size is {}", cache_size);
+
+        let message_file_data = message_guard
+            .get(&message.topic_name)
+            .unwrap()
+            .get(partition_to_send_to as usize)
+            .unwrap();
+        let messages_to_insert_here = 10 - message_file_data.lines_added_to_current_file as usize; // because
+        // 10 is the sequence size in a file
+        let values_to_put_in_current_file = &list_of_values[..messages_to_insert_here];
+        let values_to_put_in_next_file = &list_of_values[messages_to_insert_here..];
+        let res = append_vecs_to_file(
+            message_file_data.current_file_number,
+            values_to_put_in_current_file,
+            &message.topic_name,
+            partition_to_send_to,
+        );
+        if res.is_err() {
+            println!("{:?}", res.err());
+            return Err("Issue writing to the current file".to_string());
+        }
+        let res = create_file(
+            message_file_data.current_file_number + 10,
+            &message.topic_name,
+            partition_to_send_to,
+        );
+        if res.is_err() {
+            println!("{:?}", res.err());
+            return Err("Issue creating the file".to_string());
+        }
+        if values_to_put_in_next_file.len() > 0 {
+            let res = append_vecs_to_file(
+                message_file_data.current_file_number + 10,
+                values_to_put_in_next_file,
+                &message.topic_name,
+                partition_to_send_to,
+            );
+            if res.is_err() {
+                println!("{:?}", res.err());
+                return Err("Issue writing to the new file".to_string());
+            }
+        }
+        if let Some(partitions) = message_guard.get_mut(&message.topic_name) {
+            if let Some(partition) = partitions.get_mut(partition_to_send_to as usize) {
+                partition.messages.clear();
+                partition.current_file_number += 10;
+                partition.lines_added_to_current_file = values_to_put_in_next_file.len() as i32;
+            }
+        }
     }
     Ok(())
 }

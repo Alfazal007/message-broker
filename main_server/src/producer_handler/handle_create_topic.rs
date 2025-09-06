@@ -34,7 +34,7 @@ pub async fn handle_create_topic(
         for i in 0..partitions {
             let inner_folder_path = path.join(format!("{}", i));
             _ = fs::create_dir(&inner_folder_path).await;
-            let file_path = inner_folder_path.join("0000.log");
+            let file_path = inner_folder_path.join("0.log");
             let file_res = File::create(&file_path).await;
             if file_res.is_err() {
                 return Err(format!("Issue creating topic file {:?}", file_res.err()));
@@ -55,6 +55,8 @@ pub async fn handle_create_topic(
                     PartitionToMessage {
                         partition: i,
                         messages: Vec::new(),
+                        current_file_number: 0,
+                        lines_added_to_current_file: 0,
                     }
                 });
             }
