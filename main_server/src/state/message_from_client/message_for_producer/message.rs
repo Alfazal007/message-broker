@@ -25,6 +25,7 @@ pub struct DeleteTopic {
 
 #[derive(Deserialize)]
 pub struct MessageTopic {
+    pub key: Option<String>,
     pub topic_name: String,
     pub data: Vec<u8>,
 }

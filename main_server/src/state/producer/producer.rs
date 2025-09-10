@@ -9,7 +9,7 @@ use tokio::{
 use crate::state::{
     helpers::helper::Helper,
     message_from_client::message_for_producer::message::{
-        CreateTopic, DeleteTopic, ProducerMessage,
+        CreateTopic, DeleteTopic, MessageTopic, ProducerMessage,
     },
     message_to_client::{failure_message::Failure, success_message::Success},
     topic_state::topic_state::Topic,
@@ -66,7 +66,12 @@ impl Producer {
                                 let success_message = Success::new();
                                 success_message.send_message(&mut writer).await;
                             },
-                            crate::state::message_from_client::message_for_producer::message::Message::MESSAGETOPIC(message) => {}
+                            crate::state::message_from_client::message_for_producer::message::Message::MESSAGETOPIC(message) => {
+                                let MessageTopic { topic_name, data, key } = message;
+                                {
+                                    let mut topics_guard = self.topics_data.write().await;
+                                }
+                            }
                         },
                     }
                 }
