@@ -1,18 +1,17 @@
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
+use tokio::try_join;
+
+use crate::producer_handler::producer_task::produce_task;
+
+pub mod message_from_client_to_server;
+pub mod message_from_server_to_client;
+pub mod producer_handler;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut stream = TcpStream::connect("127.0.0.1:8000").await?;
-    println!("Connected to server at 127.0.0.1:8000");
+    let producer_handler_task = tokio::spawn(async move {
+        let producer_res = produce_task().await;
+    });
 
-    let msg = b"Hello from client!";
-    stream.write_all(msg).await?;
-    println!("Sent: {:?}", msg);
-
-    let mut buffer = vec![0u8; 1024];
-    let n = stream.read(&mut buffer).await?;
-    println!("Received: {:?}", &buffer[..n]);
-
+    try_join!(producer_handler_task)?;
     Ok(())
 }
