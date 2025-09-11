@@ -70,7 +70,10 @@ impl Producer {
                                 let MessageTopic { topic_name, data, key } = message;
                                 {
                                     let mut topics_guard = self.topics_data.write().await;
+                                    topics_guard.send_message(key, data, topic_name).await;
                                 }
+                                let success_message = Success::new();
+                                success_message.send_message(&mut writer).await;
                             }
                         },
                     }

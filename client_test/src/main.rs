@@ -9,7 +9,7 @@ pub mod producer_handler;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let producer_handler_task = tokio::spawn(async move {
-        let producer_res = produce_task().await;
+        let _ = produce_task().await;
     });
 
     try_join!(producer_handler_task)?;
