@@ -1,4 +1,15 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    env,
+    fs::File,
+    io::{BufRead, BufReader},
+    path::Path,
+};
+
+use tokio::{
+    fs::{self, OpenOptions},
+    io::AsyncWriteExt,
+};
 
 #[derive(Debug)]
 pub struct MessageAndTotalMessageCount {
@@ -91,5 +102,99 @@ impl MessageStore {
             .unwrap()
             .messages;
         std::mem::take(messages)
+    }
+
+    pub async fn get_message_by_offset(
+        &self,
+        partition: &i32,
+        topic: &str,
+        offset: i32,
+    ) -> Option<Vec<u8>> {
+        let total_messages = self
+            .store
+            .get(topic)
+            .unwrap()
+            .get(partition)
+            .unwrap()
+            .total_messages;
+        if total_messages <= offset {
+            return None;
+        }
+
+        let cache_start_offset = (total_messages / 10) * 10;
+        if offset >= cache_start_offset {
+            let message = self
+                .store
+                .get(topic)
+                .unwrap()
+                .get(&partition)
+                .unwrap()
+                .messages
+                .get((offset % 10) as usize);
+            if message.is_none() {
+                return None;
+            } else {
+                let message = message.unwrap().clone();
+                return Some(message);
+            }
+        } else {
+            let message = self.read_line(offset, topic, partition).await;
+            return Some(message);
+        }
+    }
+
+    async fn read_line(&self, offset: i32, topic: &str, partition: &i32) -> Vec<u8> {
+        let file_with_data = (offset / 10) * 10;
+        let file_path = env::current_dir()
+            .unwrap()
+            .join("logs")
+            .join(topic)
+            .join(format!("{}", partition))
+            .join(format!("{}.log", file_with_data));
+        let f = File::open(file_path).unwrap();
+        let mut lines = BufReader::new(f).lines();
+        if let Some(line) = lines.nth(offset as usize) {
+            let s = line.unwrap();
+            return s.into_bytes();
+        }
+        return Vec::new();
+    }
+
+    pub async fn commit_offset(&self, partition: &i32, topic: &str, offset: i32) -> Result<(), ()> {
+        let total_messages = self
+            .store
+            .get(topic)
+            .unwrap()
+            .get(partition)
+            .unwrap()
+            .total_messages;
+        if total_messages <= offset {
+            return Err(());
+        }
+        let path = env::current_dir()
+            .unwrap()
+            .join("offsets")
+            .join(&topic)
+            .join(format!("{}", partition));
+        let res = self.write_to_file(path, offset).await;
+        if res.is_err() {
+            return Err(());
+        }
+        return Ok(());
+    }
+
+    async fn write_to_file<P: AsRef<Path>>(&self, path: P, value: i32) -> std::io::Result<()> {
+        if let Some(parent) = path.as_ref().parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .await?;
+        let bytes = value.to_le_bytes();
+        file.write_all(&bytes).await?;
+        Ok(())
     }
 }

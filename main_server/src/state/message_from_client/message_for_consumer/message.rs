@@ -10,7 +10,6 @@ pub enum Message {
     JOINCONSUMER(JoinConsumer),
     LEAVECONSUMER(LeaveConsumer),
     GETOFFSETMESSAGE(GetOffsetMessage),
-    GETNEXTMESSAGE(GetNextMessage),
     COMMITOFFSET(CommitOffset),
 }
 
@@ -29,13 +28,6 @@ pub struct GetOffsetMessage {
     pub topic_name: String,
     pub partition: i32,
     pub offset: i32,
-    pub commit: bool,
-}
-
-#[derive(Deserialize)]
-pub struct GetNextMessage {
-    pub topic_name: String,
-    pub commit: bool,
 }
 
 #[derive(Deserialize)]

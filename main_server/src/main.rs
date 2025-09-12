@@ -55,7 +55,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let consumer = Consumer::new(Arc::clone(&thread_topic));
                                 consumer.handler(reader, write_half).await;
                                 return;
-                                // consumer
                             }
                             _ => {
                                 println!("Invalid data");

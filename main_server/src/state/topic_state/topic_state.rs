@@ -225,4 +225,15 @@ impl Topic {
             .assigned_partitions
             .extend(removed_vec.assigned_partitions.drain(..));
     }
+
+    pub async fn read_message_from_topic_and_partition(
+        &self,
+        topic: &str,
+        partition: &i32,
+        offset: i32,
+    ) -> Option<Vec<u8>> {
+        self.messages_store
+            .get_message_by_offset(partition, topic, offset)
+            .await
+    }
 }

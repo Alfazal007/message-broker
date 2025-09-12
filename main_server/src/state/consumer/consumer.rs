@@ -9,9 +9,11 @@ use tokio::{
 use crate::state::{
     helpers::helper::Helper,
     message_from_client::message_for_consumer::message::{
-        ConsumerMessage, JoinConsumer, LeaveConsumer,
+        CommitOffset, ConsumerMessage, GetOffsetMessage, JoinConsumer, LeaveConsumer,
     },
-    message_to_client::{failure_message::Failure, success_message::Success},
+    message_to_client::{
+        failure_message::Failure, offset_message::OffsetMessage, success_message::Success,
+    },
     topic_state::topic_state::Topic,
 };
 
@@ -73,14 +75,44 @@ impl Consumer {
                                 Success::new().send_message(&mut writer).await;
                                 return;
                             },
-                            crate::state::message_from_client::message_for_consumer::message::Message::GETOFFSETMESSAGE(get_offset_message) =>{
-                                // TODO:: complete this
-                            },
-                            crate::state::message_from_client::message_for_consumer::message::Message::GETNEXTMESSAGE(get_next_message) => {
-                                // TODO:: complete this
+                            crate::state::message_from_client::message_for_consumer::message::Message::GETOFFSETMESSAGE(get_offset_message) => {
+                                let GetOffsetMessage {
+                                    topic_name,
+                                    partition,
+                                    offset,
+                                } = get_offset_message;
+                                let message;
+                                {
+                                    let topic_guard = self.topics_data.read().await;
+                                    message = topic_guard
+                                        .read_message_from_topic_and_partition(
+                                            &topic_name,
+                                            &partition,
+                                            offset
+                                        ).await;
+                                }
+                                if message.is_none() {
+                                    Failure::new().send_message(&mut writer).await;
+                                } else {
+                                    OffsetMessage::new(message.unwrap()).send_message(&mut writer).await;
+                                }
                             },
                             crate::state::message_from_client::message_for_consumer::message::Message::COMMITOFFSET(commit_offset) => {
-                                // TODO:: complete this
+                                let CommitOffset {
+                                    topic_name,
+                                    partition,
+                                    offset
+                                } = commit_offset;
+                                let response;
+                                {
+                                    let topic_guard = self.topics_data.write().await;
+                                    response = topic_guard.messages_store.commit_offset(&partition, &topic_name,offset).await;
+                                }
+                                if response.is_err() {
+                                    Failure::new().send_message(&mut writer).await;
+                                } else {
+                                    Success::new().send_message(&mut writer).await;
+                                }
                             }
                         },
                     }
