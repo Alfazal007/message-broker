@@ -5,6 +5,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 
+use crate::state::consumer::consumer::Consumer;
 use crate::state::message_from_client::init_struct::InitProducerConsumer;
 use crate::state::message_to_client::success_message::Success;
 use crate::state::producer::producer::Producer;
@@ -49,6 +50,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             1 => {
                                 println!("consumer task in");
+                                let success_message = Success::new();
+                                success_message.send_message(&mut write_half).await;
+                                let consumer = Consumer::new(Arc::clone(&thread_topic));
+                                consumer.handler(reader, write_half).await;
+                                return;
                                 // consumer
                             }
                             _ => {
